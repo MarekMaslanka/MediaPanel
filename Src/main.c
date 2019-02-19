@@ -54,8 +54,6 @@
 #include "usb_device.h"
 
 /* USER CODE BEGIN Includes */
-#include "nrf24l01.h"
-#include "nrfconfig.h"
 
 /* USER CODE END Includes */
 
@@ -73,6 +71,7 @@ RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi3;
+DMA_HandleTypeDef hdma_spi1_tx;
 DMA_HandleTypeDef hdma_spi3_tx;
 
 TIM_HandleTypeDef htim1;
@@ -83,12 +82,19 @@ UART_HandleTypeDef huart1;
 IRDA_HandleTypeDef hirda2;
 
 osThreadId defaultTaskHandle;
-osThreadId nrf24l01TaskHandle;
+osThreadId nrf24l01RcvTaskHandle;
 osThreadId nrfSenderTaskHandle;
+osThreadId playMusicTaskHandle;
+osThreadId playSDCardTaskHandle;
 osMessageQId nrf24l01QueueHandle;
 osMutexId nrfSdcardSpiMutexHandle;
 osMutexId nrf24l01MutexHandle;
-osSemaphoreId nrf24l01BinarySemHandle;
+osMutexId sdCardMutexHandle;
+osSemaphoreId nrf24l01IrqBinarySemHandle;
+osSemaphoreId vs1003BinarySemHandle;
+osSemaphoreId vs1003DReqBinarySemHandle;
+osSemaphoreId playSdCardConsumerBufferBinarySemHandle;
+osSemaphoreId playSdCardProducerBufferBinarySemHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -112,29 +118,17 @@ static void MX_TIM7_Init(void);
 static void MX_USART2_IRDA_Init(void);
 static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
-void StartNrf24l01Task(void const * argument);
-void StartNrfSenderTask(void const * argument);
+extern void StartNrf24l01Task(void const * argument);
+extern void StartNrfSenderTask(void const * argument);
+extern void StartPlayMusicTask(void const * argument);
+extern void StartPlayMusicSDCardTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-void initNrf24l01(nrfConfig_t *config);
 
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-nrfConfig_t nrfConfig = {
-	.channel = 15,
-	.payloadSize = 32,
-	.speed = NRF_SPEED_250K,
-	.outPower = NRF_POWER_0DBM,
-	.autoAck = 1,
-	.retriesCount = 10,
-	.retriesDelay = 1000,
-	.addressWidth = 5,
-	.address = { 192, 168, 5, 70, 0 },
-	.enableCrc = 1,
-	.crc = NRF_CRC8,
-};
 
 /* USER CODE END 0 */
 
@@ -180,7 +174,9 @@ int main(void)
   MX_USART2_IRDA_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  // some stm32cubemx buggy - this code should be generated in MX_GPIO_Init()
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -192,14 +188,34 @@ int main(void)
   osMutexDef(nrf24l01Mutex);
   nrf24l01MutexHandle = osMutexCreate(osMutex(nrf24l01Mutex));
 
+  /* definition and creation of sdCardMutex */
+  osMutexDef(sdCardMutex);
+  sdCardMutexHandle = osMutexCreate(osMutex(sdCardMutex));
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
   /* Create the semaphores(s) */
-  /* definition and creation of nrf24l01BinarySem */
-  osSemaphoreDef(nrf24l01BinarySem);
-  nrf24l01BinarySemHandle = osSemaphoreCreate(osSemaphore(nrf24l01BinarySem), 1);
+  /* definition and creation of nrf24l01IrqBinarySem */
+  osSemaphoreDef(nrf24l01IrqBinarySem);
+  nrf24l01IrqBinarySemHandle = osSemaphoreCreate(osSemaphore(nrf24l01IrqBinarySem), 1);
+
+  /* definition and creation of vs1003BinarySem */
+  osSemaphoreDef(vs1003BinarySem);
+  vs1003BinarySemHandle = osSemaphoreCreate(osSemaphore(vs1003BinarySem), 1);
+
+  /* definition and creation of vs1003DReqBinarySem */
+  osSemaphoreDef(vs1003DReqBinarySem);
+  vs1003DReqBinarySemHandle = osSemaphoreCreate(osSemaphore(vs1003DReqBinarySem), 1);
+
+  /* definition and creation of playSdCardConsumerBufferBinarySem */
+  osSemaphoreDef(playSdCardConsumerBufferBinarySem);
+  playSdCardConsumerBufferBinarySemHandle = osSemaphoreCreate(osSemaphore(playSdCardConsumerBufferBinarySem), 1);
+
+  /* definition and creation of playSdCardProducerBufferBinarySem */
+  osSemaphoreDef(playSdCardProducerBufferBinarySem);
+  playSdCardProducerBufferBinarySemHandle = osSemaphoreCreate(osSemaphore(playSdCardProducerBufferBinarySem), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -211,16 +227,24 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256+256);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of nrf24l01Task */
-  osThreadDef(nrf24l01Task, StartNrf24l01Task, osPriorityBelowNormal, 0, 128);
-  nrf24l01TaskHandle = osThreadCreate(osThread(nrf24l01Task), NULL);
+  /* definition and creation of nrf24l01RcvTask */
+  osThreadDef(nrf24l01RcvTask, StartNrf24l01Task, osPriorityBelowNormal, 0, 128);
+  nrf24l01RcvTaskHandle = osThreadCreate(osThread(nrf24l01RcvTask), NULL);
 
   /* definition and creation of nrfSenderTask */
   osThreadDef(nrfSenderTask, StartNrfSenderTask, osPriorityNormal, 0, 128);
   nrfSenderTaskHandle = osThreadCreate(osThread(nrfSenderTask), NULL);
+
+  /* definition and creation of playMusicTask */
+  osThreadDef(playMusicTask, StartPlayMusicTask, osPriorityIdle, 0, 256);
+  playMusicTaskHandle = osThreadCreate(osThread(playMusicTask), NULL);
+
+  /* definition and creation of playSDCardTask */
+  osThreadDef(playSDCardTask, StartPlayMusicSDCardTask, osPriorityIdle, 0, 384);
+  playSDCardTaskHandle = osThreadCreate(osThread(playSDCardTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -228,11 +252,12 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of nrf24l01Queue */
-  osMessageQDef(nrf24l01Queue, 4, 32);
+  osMessageQDef(nrf24l01Queue, 4, NRF24L01_MSG_SIZE);
   nrf24l01QueueHandle = osMessageCreate(osMessageQ(nrf24l01Queue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+
   /* USER CODE END RTOS_QUEUES */
  
 
@@ -480,7 +505,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -658,6 +683,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
   /* DMA2_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Channel2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA2_Channel2_IRQn);
@@ -747,7 +775,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : VS1003_DREQ_Pin */
   GPIO_InitStruct.Pin = VS1003_DREQ_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(VS1003_DREQ_GPIO_Port, &GPIO_InitStruct);
 
@@ -791,147 +819,28 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void initNrf24l01(nrfConfig_t *config)
-{
-	nrf24l01DataRate_t speed;
-	nrf24l01OutputPower_t power;
-	switch (config->speed)
-	{
-	case NRF_SPEED_250K:
-		speed = nrf24l01DataRate250k;
-		break;
-	case NRF_SPEED_1M:
-		speed = nrf24l01DataRate1M;
-		break;
-	default:
-		speed = nrf24l01DataRate2M;
-		break;
-	}
-
-	switch (config->outPower)
-	{
-	case NRF_POWER_M18DBM:
-		power = nrf24l01OutputPowerM18dBm;
-		break;
-	case NRF_POWER_M12DBM:
-		power = nrf24l01OutputPowerM12dBm;
-		break;
-	case NRF_POWER_M6DBM:
-		power = nrf24l01OutputPowerM6dBm;
-		break;
-	default:
-		power = nrf24l01OutputPower0dBm;
-		break;
-	}
-
-	nrf24l01Init(config->channel, config->payloadSize);
-	nrf24l01SetRF(speed, power);
-	nrf24l01SetMyAddress(config->address);
-	nrf24l01PowerUpRx();
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-//  if(GPIO_Pin == WIRELESS_IRQ_EXTI_IRQn)
-  {
-	  osSemaphoreRelease(nrf24l01BinarySemHandle);
-  }
-}
-
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-}
 
 /* USER CODE END 4 */
 
 /* StartDefaultTask function */
-void StartDefaultTask(void const * argument)
+__weak void StartDefaultTask(void const * argument)
 {
-	/* init code for FATFS */
-	MX_FATFS_Init();
+  /* init code for FATFS */
+  MX_FATFS_Init();
 
-	/* init code for LWIP */
-	MX_LWIP_Init();
+  /* init code for LWIP */
+  MX_LWIP_Init();
 
-	/* init code for USB_DEVICE */
-	MX_USB_DEVICE_Init();
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
 
-	/* USER CODE BEGIN 5 */
-
-	initNrf24l01(&nrfConfig);
-	char testNrf[24] = "testNrf";
-	/* Infinite loop */
-	for (;;)
-	{
-		if (osMessagePut(nrf24l01QueueHandle, (uint32_t) testNrf, 0) != osOK)
-		{
-		}
-		osDelay(100);
-	}
-	/* USER CODE END 5 */
-}
-
-/* StartNrf24l01Task function */
-void StartNrf24l01Task(void const * argument)
-{
-  /* USER CODE BEGIN StartNrf24l01Task */
-	uint8_t dataIn[32];
-	/* Infinite loop */
-	for (;;)
-	{
-		if (osSemaphoreWait(nrf24l01BinarySemHandle, portMAX_DELAY) == osOK)
-		{
-			HAL_GPIO_WritePin(GPIOE, LED2_Pin, GPIO_PIN_RESET);
-			osMutexWait(nrf24l01MutexHandle, osWaitForever);
-			while (nrf24l01DataReady())
-			{
-				nrf24l01GetData(dataIn);
-			}
-			osMutexRelease(nrf24l01MutexHandle);
-			HAL_GPIO_WritePin(GPIOE, LED2_Pin, GPIO_PIN_SET);
-		}
-	}
-  /* USER CODE END StartNrf24l01Task */
-}
-
-/* StartNrfSenderTask function */
-void StartNrfSenderTask(void const * argument)
-{
-	/* USER CODE BEGIN StartNrfSenderTask */
-	osEvent event;
-	char *msg;
-	uint8_t wait;
-	nrf24l01TransmitStatus_t transmissionStatus;
-
-	uint8_t Addresses[] = { 192, 168, 5, 72, 0 };
-
-	/* Infinite loop */
-	for (;;)
-	{
-		event = osMessageGet(nrf24l01QueueHandle, osWaitForever);
-
-		if (event.status == osEventMessage)
-		{
-			msg = (char *) event.value.p;
-			HAL_GPIO_WritePin(GPIOE, LED1_Pin, GPIO_PIN_RESET);
-			osMutexWait(nrf24l01MutexHandle, osWaitForever);
-			nrf24l01SetTxAddress(Addresses);
-			nrf24l01Transmit((uint8_t *) msg);
-			wait = 0;
-			do
-			{
-				osDelay(wait++);
-				transmissionStatus = nrf24l01GetTransmissionStatus();
-			} while (transmissionStatus == nrf24l01TransmitStatusSending);
-			nrf24l01PowerUpRx();
-			osMutexRelease(nrf24l01MutexHandle);
-			HAL_GPIO_WritePin(GPIOE, LED1_Pin, GPIO_PIN_SET);
-		}
-		else
-		{
-		}
-	}
-	/* USER CODE END StartNrfSenderTask */
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END 5 */ 
 }
 
 /**
