@@ -1,6 +1,5 @@
 
-#include "stm32f1xx.h"
-#include "stm32f1xx_hal.h"
+#include "main.h"
 
 #ifndef VS1003_H_
 #define VS1003_H_

@@ -1,3 +1,4 @@
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * File Name          : stm32f1xx_hal_msp.c
@@ -10,7 +11,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -46,16 +47,49 @@
   *
   ******************************************************************************
   */
-/* Includes ------------------------------------------------------------------*/
-#include "stm32f1xx_hal.h"
+/* USER CODE END Header */
 
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+/* USER CODE BEGIN Includes */
+
+/* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_adc1;
 
 extern DMA_HandleTypeDef hdma_spi1_tx;
 
 extern DMA_HandleTypeDef hdma_spi3_tx;
 
-extern void _Error_Handler(char *, int);
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN TD */
+
+/* USER CODE END TD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN Define */
+ 
+/* USER CODE END Define */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN Macro */
+
+/* USER CODE END Macro */
+
+/* Private variables ---------------------------------------------------------*/
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* External functions --------------------------------------------------------*/
+/* USER CODE BEGIN ExternalFunctions */
+
+/* USER CODE END ExternalFunctions */
+
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
@@ -69,8 +103,7 @@ void HAL_MspInit(void)
   /* USER CODE END MspInit 0 */
 
   __HAL_RCC_AFIO_CLK_ENABLE();
-
-  HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
+  __HAL_RCC_PWR_CLK_ENABLE();
 
   /* System interrupt init*/
   /* MemoryManagement_IRQn interrupt configuration */
@@ -79,17 +112,13 @@ void HAL_MspInit(void)
   HAL_NVIC_SetPriority(BusFault_IRQn, 5, 0);
   /* UsageFault_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(UsageFault_IRQn, 5, 0);
-  /* SVCall_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SVCall_IRQn, 0, 0);
   /* DebugMonitor_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DebugMonitor_IRQn, 5, 0);
   /* PendSV_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(PendSV_IRQn, 15, 0);
-  /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 15, 0);
 
-    /**ENABLE: Full SWJ (JTAG-DP + SW-DP): Reset State 
-    */
+  /**ENABLE: Full SWJ (JTAG-DP + SW-DP): Reset State 
+  */
   __HAL_AFIO_REMAP_SWJ_ENABLE();
 
   /* USER CODE BEGIN MspInit 1 */
@@ -97,10 +126,16 @@ void HAL_MspInit(void)
   /* USER CODE END MspInit 1 */
 }
 
+/**
+* @brief ADC MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hadc: ADC handle pointer
+* @retval None
+*/
 void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hadc->Instance==ADC1)
   {
   /* USER CODE BEGIN ADC1_MspInit 0 */
@@ -109,6 +144,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     /* Peripheral clock enable */
     __HAL_RCC_ADC1_CLK_ENABLE();
   
+    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**ADC1 GPIO Configuration    
     PB1     ------> ADC1_IN9 
     */
@@ -128,7 +164,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     hdma_adc1.Init.Priority = DMA_PRIORITY_MEDIUM;
     if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      Error_Handler();
     }
 
     __HAL_LINKDMA(hadc,DMA_Handle,hdma_adc1);
@@ -139,6 +175,13 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
   }
 
 }
+
+/**
+* @brief ADC MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hadc: ADC handle pointer
+* @retval None
+*/
 
 void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 {
@@ -165,10 +208,16 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 
 }
 
+/**
+* @brief CAN MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hcan: CAN handle pointer
+* @retval None
+*/
 void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hcan->Instance==CAN1)
   {
   /* USER CODE BEGIN CAN1_MspInit 0 */
@@ -177,6 +226,7 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
     /* Peripheral clock enable */
     __HAL_RCC_CAN1_CLK_ENABLE();
   
+    __HAL_RCC_GPIOD_CLK_ENABLE();
     /**CAN1 GPIO Configuration    
     PD0     ------> CAN1_RX
     PD1     ------> CAN1_TX 
@@ -199,6 +249,13 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
   }
 
 }
+
+/**
+* @brief CAN MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hcan: CAN handle pointer
+* @retval None
+*/
 
 void HAL_CAN_MspDeInit(CAN_HandleTypeDef* hcan)
 {
@@ -224,6 +281,12 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* hcan)
 
 }
 
+/**
+* @brief CRC MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hcrc: CRC handle pointer
+* @retval None
+*/
 void HAL_CRC_MspInit(CRC_HandleTypeDef* hcrc)
 {
 
@@ -240,6 +303,13 @@ void HAL_CRC_MspInit(CRC_HandleTypeDef* hcrc)
   }
 
 }
+
+/**
+* @brief CRC MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hcrc: CRC handle pointer
+* @retval None
+*/
 
 void HAL_CRC_MspDeInit(CRC_HandleTypeDef* hcrc)
 {
@@ -258,16 +328,23 @@ void HAL_CRC_MspDeInit(CRC_HandleTypeDef* hcrc)
 
 }
 
+/**
+* @brief I2C MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hi2c: I2C handle pointer
+* @retval None
+*/
 void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hi2c->Instance==I2C1)
   {
   /* USER CODE BEGIN I2C1_MspInit 0 */
 
   /* USER CODE END I2C1_MspInit 0 */
   
+    __HAL_RCC_GPIOB_CLK_ENABLE();
     /**I2C1 GPIO Configuration    
     PB6     ------> I2C1_SCL
     PB7     ------> I2C1_SDA 
@@ -285,6 +362,13 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
   }
 
 }
+
+/**
+* @brief I2C MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hi2c: I2C handle pointer
+* @retval None
+*/
 
 void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
 {
@@ -310,6 +394,12 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
 
 }
 
+/**
+* @brief RTC MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hrtc: RTC handle pointer
+* @retval None
+*/
 void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
 {
 
@@ -330,6 +420,13 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
 
 }
 
+/**
+* @brief RTC MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hrtc: RTC handle pointer
+* @retval None
+*/
+
 void HAL_RTC_MspDeInit(RTC_HandleTypeDef* hrtc)
 {
 
@@ -347,10 +444,16 @@ void HAL_RTC_MspDeInit(RTC_HandleTypeDef* hrtc)
 
 }
 
+/**
+* @brief SPI MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hspi: SPI handle pointer
+* @retval None
+*/
 void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hspi->Instance==SPI1)
   {
   /* USER CODE BEGIN SPI1_MspInit 0 */
@@ -359,6 +462,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     /* Peripheral clock enable */
     __HAL_RCC_SPI1_CLK_ENABLE();
   
+    __HAL_RCC_GPIOA_CLK_ENABLE();
     /**SPI1 GPIO Configuration    
     PA5     ------> SPI1_SCK
     PA6     ------> SPI1_MISO
@@ -386,7 +490,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     hdma_spi1_tx.Init.Priority = DMA_PRIORITY_LOW;
     if (HAL_DMA_Init(&hdma_spi1_tx) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      Error_Handler();
     }
 
     __HAL_LINKDMA(hspi,hdmatx,hdma_spi1_tx);
@@ -403,6 +507,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     /* Peripheral clock enable */
     __HAL_RCC_SPI3_CLK_ENABLE();
   
+    __HAL_RCC_GPIOC_CLK_ENABLE();
     /**SPI3 GPIO Configuration    
     PC10     ------> SPI3_SCK
     PC11     ------> SPI3_MISO
@@ -432,7 +537,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     hdma_spi3_tx.Init.Priority = DMA_PRIORITY_MEDIUM;
     if (HAL_DMA_Init(&hdma_spi3_tx) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      Error_Handler();
     }
 
     __HAL_LINKDMA(hspi,hdmatx,hdma_spi3_tx);
@@ -443,6 +548,13 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
   }
 
 }
+
+/**
+* @brief SPI MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hspi: SPI handle pointer
+* @retval None
+*/
 
 void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 {
@@ -492,6 +604,12 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 
 }
 
+/**
+* @brief TIM_Base MSP Initialization
+* This function configures the hardware resources used in this example
+* @param htim_base: TIM_Base handle pointer
+* @retval None
+*/
 void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 {
 
@@ -530,6 +648,13 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
   }
 
 }
+
+/**
+* @brief TIM_Base MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param htim_base: TIM_Base handle pointer
+* @retval None
+*/
 
 void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
 {
@@ -570,10 +695,16 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
 
 }
 
+/**
+* @brief UART MSP Initialization
+* This function configures the hardware resources used in this example
+* @param huart: UART handle pointer
+* @retval None
+*/
 void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(huart->Instance==USART1)
   {
   /* USER CODE BEGIN USART1_MspInit 0 */
@@ -582,6 +713,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     /* Peripheral clock enable */
     __HAL_RCC_USART1_CLK_ENABLE();
   
+    __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USART1 GPIO Configuration    
     PA9     ------> USART1_TX
     PA10     ------> USART1_RX 
@@ -603,10 +735,16 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
 
 }
 
+/**
+* @brief IRDA MSP Initialization
+* This function configures the hardware resources used in this example
+* @param hirda: IRDA handle pointer
+* @retval None
+*/
 void HAL_IRDA_MspInit(IRDA_HandleTypeDef* hirda)
 {
 
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hirda->Instance==USART2)
   {
   /* USER CODE BEGIN USART2_MspInit 0 */
@@ -615,6 +753,7 @@ void HAL_IRDA_MspInit(IRDA_HandleTypeDef* hirda)
     /* Peripheral clock enable */
     __HAL_RCC_USART2_CLK_ENABLE();
   
+    __HAL_RCC_GPIOD_CLK_ENABLE();
     /**USART2 GPIO Configuration    
     PD5     ------> USART2_TX
     PD6     ------> USART2_RX 
@@ -637,6 +776,13 @@ void HAL_IRDA_MspInit(IRDA_HandleTypeDef* hirda)
   }
 
 }
+
+/**
+* @brief UART MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param huart: UART handle pointer
+* @retval None
+*/
 
 void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
 {
@@ -661,6 +807,13 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
   }
 
 }
+
+/**
+* @brief IRDA MSP De-Initialization
+* This function freeze the hardware resources used in this example
+* @param hirda: IRDA handle pointer
+* @retval None
+*/
 
 void HAL_IRDA_MspDeInit(IRDA_HandleTypeDef* hirda)
 {
@@ -689,13 +842,5 @@ void HAL_IRDA_MspDeInit(IRDA_HandleTypeDef* hirda)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
-
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

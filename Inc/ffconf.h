@@ -1,3 +1,4 @@
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   *  FatFs - FAT file system module configuration file  R0.11 (C)ChaN, 2015
@@ -8,7 +9,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2019 STMicroelectronics International N.V. 
   * All rights reserved.
   *
   * Redistribution and use in source and binary forms, with or without 
@@ -44,6 +45,7 @@
   *
   ******************************************************************************
   */
+/* USER CODE END Header */
 
 #ifndef _FFCONF
 #define _FFCONF 32020	/* Revision ID */
@@ -51,6 +53,7 @@
 /*-----------------------------------------------------------------------------/
 / Additional user header to be used  
 /-----------------------------------------------------------------------------*/
+#include "main.h"
 #include "stm32f1xx_hal.h"
 #include "cmsis_os.h"    /* _FS_REENTRANT set to 1 */                
 

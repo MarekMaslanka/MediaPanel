@@ -8,7 +8,7 @@
 #ifndef NRF24L01_HWCONFIG_H_
 #define NRF24L01_HWCONFIG_H_
 
-#include "stm32f1xx_hal.h"
+#include "main.h"
 
 /* SPI chip enable pin */
 #define NRF24L01_CSN_PORT			WIRELESS_CS_GPIO_Port
