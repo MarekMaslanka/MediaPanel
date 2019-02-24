@@ -123,6 +123,7 @@
 /* #define USE_FULL_ASSERT    1U */
 
 /* USER CODE BEGIN Private defines */
+#define NRF24L01_MSG_SIZE uint8_t[32]
 
 /* USER CODE END Private defines */
 
